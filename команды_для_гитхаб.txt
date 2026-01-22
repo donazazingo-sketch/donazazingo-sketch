@@ -1,0 +1,20 @@
+Команды для сохранения изменений в GitHub:
+
+1. Установите Git: https://git-scm.com/download/win
+2. Перезапустите терминал после установки
+3. Выполните эти команды:
+
+cd C:\Users\user\inventory-tracker
+git init
+git add .
+git commit -m "Добавлено сохранение значений товаров в localStorage"
+git remote add origin https://github.com/YOUR_USERNAME/donazazingo-sketch.git
+git branch -M main
+git push -u origin main
+
+ВАЖНО: Замените YOUR_USERNAME на ваш GitHub username!
+
+Если репозиторий уже существует:
+git add .
+git commit -m "Обновление: улучшено сохранение значений товаров"
+git push

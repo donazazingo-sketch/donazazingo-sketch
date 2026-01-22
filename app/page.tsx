@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { StoreCard } from "@/components/store-card"
@@ -21,39 +21,88 @@ interface StoreData {
   products: Product[]
 }
 
+const STORAGE_KEYS = {
+  categoryNames: "inventory-tracker-category-names",
+  stores: "inventory-tracker-stores",
+}
+
+const defaultCategoryNames = {
+  category1: "Електроніка",
+  category2: "Аксесуари",
+  category3: "Послуги",
+}
+
+const defaultStores: StoreData[] = [
+  {
+    id: "store-1",
+    name: "Магазин у центрі",
+    products: [
+      { id: "prod-1", name: "Ноутбук", quantity: 15, category: "category1" },
+      { id: "prod-2", name: "Монітор", quantity: 23, category: "category1" },
+      { id: "prod-3", name: "Клавіатура", quantity: 45, category: "category2" },
+    ],
+  },
+  {
+    id: "store-2",
+    name: "ТЦ Локація",
+    products: [
+      { id: "prod-4", name: "Навушники", quantity: 30, category: "category2" },
+      { id: "prod-5", name: "Мишка", quantity: 52, category: "category2" },
+    ],
+  },
+]
+
 export default function InventoryTracker() {
-  const [categoryNames, setCategoryNames] = useState({
-    category1: "Електроніка",
-    category2: "Аксесуари",
-    category3: "Послуги",
+  // Загрузка данных из localStorage при инициализации
+  const [categoryNames, setCategoryNames] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(STORAGE_KEYS.categoryNames)
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch {
+          return defaultCategoryNames
+        }
+      }
+    }
+    return defaultCategoryNames
   })
+
   const [editingCategory, setEditingCategory] = useState<"category1" | "category2" | "category3" | null>(null)
   const [editedCategoryName, setEditedCategoryName] = useState("")
 
-  const [stores, setStores] = useState<StoreData[]>([
-    {
-      id: "store-1",
-      name: "Магазин у центрі",
-      products: [
-        { id: "prod-1", name: "Ноутбук", quantity: 15, category: "category1" },
-        { id: "prod-2", name: "Монітор", quantity: 23, category: "category1" },
-        { id: "prod-3", name: "Клавіатура", quantity: 45, category: "category2" },
-      ],
-    },
-    {
-      id: "store-2",
-      name: "ТЦ Локація",
-      products: [
-        { id: "prod-4", name: "Навушники", quantity: 30, category: "category2" },
-        { id: "prod-5", name: "Мишка", quantity: 52, category: "category2" },
-      ],
-    },
-  ])
+  const [stores, setStores] = useState<StoreData[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(STORAGE_KEYS.stores)
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch {
+          return defaultStores
+        }
+      }
+    }
+    return defaultStores
+  })
+
+  // Сохранение categoryNames в localStorage при изменении
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.categoryNames, JSON.stringify(categoryNames))
+    }
+  }, [categoryNames])
+
+  // Сохранение stores в localStorage при изменении
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(stores))
+    }
+  }, [stores])
 
   const addStore = () => {
     const newStore: StoreData = {
       id: `store-${Date.now()}`,
-      name: `Новий магазин ${stores.length + 1}`,
+      name: `Нова позиція ${stores.length + 1}`,
       products: [],
     }
     setStores([...stores, newStore])
@@ -75,16 +124,30 @@ export default function InventoryTracker() {
   }
 
   const updateStoreName = (storeId: string, name: string) => {
-    setStores(stores.map((s) => (s.id === storeId ? { ...s, name } : s)))
+    setStores((prevStores) => {
+      const updated = prevStores.map((s) => (s.id === storeId ? { ...s, name } : s))
+      // Явное сохранение в localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   const deleteStore = (storeId: string) => {
-    setStores(stores.filter((s) => s.id !== storeId))
+    setStores((prevStores) => {
+      const updated = prevStores.filter((s) => s.id !== storeId)
+      // Явное сохранение в localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   const addProduct = (storeId: string, category: ProductCategory) => {
-    setStores(
-      stores.map((s) => {
+    setStores((prevStores) => {
+      const updated = prevStores.map((s) => {
         if (s.id === storeId) {
           return {
             ...s,
@@ -101,12 +164,17 @@ export default function InventoryTracker() {
         }
         return s
       })
-    )
+      // Явное сохранение товаров в localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   const updateProduct = (storeId: string, productId: string, name: string, quantity: number) => {
-    setStores(
-      stores.map((s) => {
+    setStores((prevStores) => {
+      const updated = prevStores.map((s) => {
         if (s.id === storeId) {
           return {
             ...s,
@@ -117,12 +185,17 @@ export default function InventoryTracker() {
         }
         return s
       })
-    )
+      // Явное сохранение значений товаров в localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   const deleteProduct = (storeId: string, productId: string) => {
-    setStores(
-      stores.map((s) => {
+    setStores((prevStores) => {
+      const updated = prevStores.map((s) => {
         if (s.id === storeId) {
           return {
             ...s,
@@ -131,7 +204,12 @@ export default function InventoryTracker() {
         }
         return s
       })
-    )
+      // Явное сохранение после удаления товара
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   const totalStores = stores.length
@@ -187,7 +265,7 @@ export default function InventoryTracker() {
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Додати магазин
+              Додати позицію
             </Button>
           </div>
 
@@ -380,7 +458,7 @@ export default function InventoryTracker() {
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Додати перший магазин
+              Додати першу позицію
             </Button>
           </div>
         ) : (
