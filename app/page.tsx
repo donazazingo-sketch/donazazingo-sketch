@@ -212,8 +212,6 @@ export default function InventoryTracker() {
     })
   }
 
-  const totalStores = stores.length
-
   // Calculate stats per category
   const allProducts = stores.flatMap((s) => s.products)
 
@@ -248,9 +246,6 @@ export default function InventoryTracker() {
   const category1TotalQuantity = category1Products.reduce((sum, p) => sum + p.quantity, 0)
   const category2TotalQuantity = category2Products.reduce((sum, p) => sum + p.quantity, 0)
   const category3TotalQuantity = category3Products.reduce((sum, p) => sum + p.quantity, 0)
-
-  const totalProducts = category1UniqueTypes.size + category2UniqueTypes.size + category3UniqueTypes.size
-  const totalItems = category1TotalQuantity + category2TotalQuantity + category3TotalQuantity
 
   return (
     <div className="min-h-screen bg-background">
