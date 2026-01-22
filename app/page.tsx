@@ -5,107 +5,71 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { StoreCard } from "@/components/store-card"
 import { Plus, Store, Edit2, Check, X } from "lucide-react"
+import type { ProductCategory, Product, StoreData, CategoryNames } from "@/lib/database.types"
 
-type ProductCategory = "category1" | "category2" | "category3"
-
-interface Product {
-  id: string
-  name: string
-  quantity: number
-  category: ProductCategory
-}
-
-interface StoreData {
-  id: string
-  name: string
-  products: Product[]
-}
-
-const STORAGE_KEYS = {
-  categoryNames: "inventory-tracker-category-names",
-  stores: "inventory-tracker-stores",
-}
-
-const defaultCategoryNames = {
+const defaultCategoryNames: CategoryNames = {
   category1: "Електроніка",
   category2: "Аксесуари",
   category3: "Послуги",
 }
 
-const defaultStores: StoreData[] = [
-  {
-    id: "store-1",
-    name: "Магазин у центрі",
-    products: [
-      { id: "prod-1", name: "Ноутбук", quantity: 15, category: "category1" },
-      { id: "prod-2", name: "Монітор", quantity: 23, category: "category1" },
-      { id: "prod-3", name: "Клавіатура", quantity: 45, category: "category2" },
-    ],
-  },
-  {
-    id: "store-2",
-    name: "ТЦ Локація",
-    products: [
-      { id: "prod-4", name: "Навушники", quantity: 30, category: "category2" },
-      { id: "prod-5", name: "Мишка", quantity: 52, category: "category2" },
-    ],
-  },
-]
-
 export default function InventoryTracker() {
-  // Загрузка данных из localStorage при инициализации
-  const [categoryNames, setCategoryNames] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(STORAGE_KEYS.categoryNames)
-      if (saved) {
-        try {
-          return JSON.parse(saved)
-        } catch {
-          return defaultCategoryNames
-        }
-      }
-    }
-    return defaultCategoryNames
-  })
-
+  const [categoryNames, setCategoryNames] = useState<CategoryNames>(defaultCategoryNames)
   const [editingCategory, setEditingCategory] = useState<"category1" | "category2" | "category3" | null>(null)
   const [editedCategoryName, setEditedCategoryName] = useState("")
+  const [stores, setStores] = useState<StoreData[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [stores, setStores] = useState<StoreData[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(STORAGE_KEYS.stores)
-      if (saved) {
-        try {
-          return JSON.parse(saved)
-        } catch {
-          return defaultStores
-        }
+  // Загрузка данных при монтировании компонента
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      
+      // Загружаем категории
+      const categoryResponse = await fetch('/api/category-names')
+      if (categoryResponse.ok) {
+        const categories = await categoryResponse.json()
+        setCategoryNames(categories)
       }
-    }
-    return defaultStores
-  })
 
-  // Сохранение categoryNames в localStorage при изменении
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.categoryNames, JSON.stringify(categoryNames))
+      // Загружаем позиции
+      const storesResponse = await fetch('/api/stores')
+      if (storesResponse.ok) {
+        const storesData = await storesResponse.json()
+        setStores(storesData)
+      }
+    } catch (error) {
+      console.error('Error loading data:', error)
+    } finally {
+      setLoading(false)
     }
-  }, [categoryNames])
+  }
 
-  // Сохранение stores в localStorage при изменении
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(stores))
-    }
-  }, [stores])
-
-  const addStore = () => {
+  const addStore = async () => {
     const newStore: StoreData = {
       id: `store-${Date.now()}`,
       name: `Нова позиція ${stores.length + 1}`,
       products: [],
     }
-    setStores([...stores, newStore])
+    
+    try {
+      const response = await fetch('/api/stores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newStore),
+      })
+      
+      if (response.ok) {
+        const createdStore = await response.json()
+        setStores([...stores, createdStore])
+      }
+    } catch (error) {
+      console.error('Error adding store:', error)
+    }
   }
 
   const startEditCategory = (category: "category1" | "category2" | "category3") => {
@@ -113,103 +77,149 @@ export default function InventoryTracker() {
     setEditedCategoryName(categoryNames[category])
   }
 
-  const saveCategoryName = () => {
+  const saveCategoryName = async () => {
     if (editingCategory && editedCategoryName.trim()) {
-      setCategoryNames((prev) => ({
-        ...prev,
+      const updated = {
+        ...categoryNames,
         [editingCategory]: editedCategoryName.trim(),
-      }))
+      }
+      
+      try {
+        const response = await fetch('/api/category-names', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated),
+        })
+        
+        if (response.ok) {
+          const saved = await response.json()
+          setCategoryNames(saved)
+        }
+      } catch (error) {
+        console.error('Error saving category name:', error)
+      }
     }
     setEditingCategory(null)
   }
 
-  const updateStoreName = (storeId: string, name: string) => {
-    setStores((prevStores) => {
-      const updated = prevStores.map((s) => (s.id === storeId ? { ...s, name } : s))
-      // Явное сохранение в localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
-      }
-      return updated
-    })
-  }
+  const updateStoreName = async (storeId: string, name: string) => {
+    const store = stores.find((s) => s.id === storeId)
+    if (!store) return
 
-  const deleteStore = (storeId: string) => {
-    setStores((prevStores) => {
-      const updated = prevStores.filter((s) => s.id !== storeId)
-      // Явное сохранение в localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
-      }
-      return updated
-    })
-  }
-
-  const addProduct = (storeId: string, category: ProductCategory) => {
-    setStores((prevStores) => {
-      const updated = prevStores.map((s) => {
-        if (s.id === storeId) {
-          return {
-            ...s,
-            products: [
-              ...s.products,
-              {
-                id: `prod-${Date.now()}`,
-                name: `Новий товар ${s.products.length + 1}`,
-                quantity: 0,
-                category,
-              },
-            ],
-          }
-        }
-        return s
+    const updatedStore = { ...store, name }
+    
+    try {
+      const response = await fetch('/api/stores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStore),
       })
-      // Явное сохранение товаров в localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      
+      if (response.ok) {
+        const saved = await response.json()
+        setStores(stores.map((s) => (s.id === storeId ? saved : s)))
       }
-      return updated
-    })
+    } catch (error) {
+      console.error('Error updating store name:', error)
+    }
   }
 
-  const updateProduct = (storeId: string, productId: string, name: string, quantity: number) => {
-    setStores((prevStores) => {
-      const updated = prevStores.map((s) => {
-        if (s.id === storeId) {
-          return {
-            ...s,
-            products: s.products.map((p) =>
-              p.id === productId ? { ...p, name, quantity } : p
-            ),
-          }
-        }
-        return s
+  const deleteStore = async (storeId: string) => {
+    try {
+      const response = await fetch(`/api/stores?id=${storeId}`, {
+        method: 'DELETE',
       })
-      // Явное сохранение значений товаров в localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      
+      if (response.ok) {
+        setStores(stores.filter((s) => s.id !== storeId))
       }
-      return updated
-    })
+    } catch (error) {
+      console.error('Error deleting store:', error)
+    }
   }
 
-  const deleteProduct = (storeId: string, productId: string) => {
-    setStores((prevStores) => {
-      const updated = prevStores.map((s) => {
-        if (s.id === storeId) {
-          return {
-            ...s,
-            products: s.products.filter((p) => p.id !== productId),
-          }
-        }
-        return s
+  const addProduct = async (storeId: string, category: ProductCategory) => {
+    const store = stores.find((s) => s.id === storeId)
+    if (!store) return
+
+    const newProduct: Product = {
+      id: `prod-${Date.now()}`,
+      name: `Новий товар ${store.products.length + 1}`,
+      quantity: 0,
+      category,
+    }
+
+    const updatedStore = {
+      ...store,
+      products: [...store.products, newProduct],
+    }
+    
+    try {
+      const response = await fetch('/api/stores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStore),
       })
-      // Явное сохранение после удаления товара
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEYS.stores, JSON.stringify(updated))
+      
+      if (response.ok) {
+        const saved = await response.json()
+        setStores(stores.map((s) => (s.id === storeId ? saved : s)))
       }
-      return updated
-    })
+    } catch (error) {
+      console.error('Error adding product:', error)
+    }
+  }
+
+  const updateProduct = async (storeId: string, productId: string, name: string, quantity: number) => {
+    const store = stores.find((s) => s.id === storeId)
+    if (!store) return
+
+    const updatedStore = {
+      ...store,
+      products: store.products.map((p) =>
+        p.id === productId ? { ...p, name, quantity } : p
+      ),
+    }
+    
+    try {
+      const response = await fetch('/api/stores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStore),
+      })
+      
+      if (response.ok) {
+        const saved = await response.json()
+        setStores(stores.map((s) => (s.id === storeId ? saved : s)))
+      }
+    } catch (error) {
+      console.error('Error updating product:', error)
+    }
+  }
+
+  const deleteProduct = async (storeId: string, productId: string) => {
+    const store = stores.find((s) => s.id === storeId)
+    if (!store) return
+
+    const updatedStore = {
+      ...store,
+      products: store.products.filter((p) => p.id !== productId),
+    }
+    
+    try {
+      const response = await fetch('/api/stores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStore),
+      })
+      
+      if (response.ok) {
+        const saved = await response.json()
+        setStores(stores.map((s) => (s.id === storeId ? saved : s)))
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error)
+    }
   }
 
   // Calculate stats per category
@@ -246,6 +256,16 @@ export default function InventoryTracker() {
   const category1TotalQuantity = category1Products.reduce((sum, p) => sum + p.quantity, 0)
   const category2TotalQuantity = category2Products.reduce((sum, p) => sum + p.quantity, 0)
   const category3TotalQuantity = category3Products.reduce((sum, p) => sum + p.quantity, 0)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Завантаження...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -446,8 +466,8 @@ export default function InventoryTracker() {
         {stores.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Store className="h-16 w-16 mb-4 opacity-50" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Магазинів поки немає</h2>
-            <p className="text-sm mb-4">Додайте свій перший магазин, щоб почати облік товарів</p>
+            <h2 className="text-xl font-semibold text-foreground mb-2">Позицій поки немає</h2>
+            <p className="text-sm mb-4">Додайте свою першу позицію, щоб почати облік товарів</p>
             <Button
               onClick={addStore}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
