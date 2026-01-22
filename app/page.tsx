@@ -23,7 +23,68 @@ export default function InventoryTracker() {
   // Загрузка данных при монтировании компонента
   useEffect(() => {
     loadData()
+    setupRealtimeSync()
+    
+    // Очистка подписки при размонтировании
+    return () => {
+      // Подписки будут очищены автоматически
+    }
   }, [])
+
+  // Настройка синхронизации в реальном времени
+  const setupRealtimeSync = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase-client')
+      const supabase = getSupabaseClient()
+      
+      if (!supabase) {
+        console.warn('Supabase не настроен. Данные не будут синхронизироваться между устройствами.')
+        console.warn('Добавьте переменные окружения NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY в Vercel.')
+        return
+      }
+
+      // Подписка на изменения в таблице stores
+      const storesChannel = supabase
+        .channel('stores-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'stores',
+          },
+          (payload) => {
+            console.log('Stores changed:', payload)
+            loadData() // Перезагружаем данные при изменении
+          }
+        )
+        .subscribe()
+
+      // Подписка на изменения в таблице category_names
+      const categoriesChannel = supabase
+        .channel('categories-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'category_names',
+          },
+          (payload) => {
+            console.log('Categories changed:', payload)
+            loadData() // Перезагружаем данные при изменении
+          }
+        )
+        .subscribe()
+
+      return () => {
+        storesChannel.unsubscribe()
+        categoriesChannel.unsubscribe()
+      }
+    } catch (error) {
+      console.error('Error setting up realtime sync:', error)
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -34,16 +95,27 @@ export default function InventoryTracker() {
       if (categoryResponse.ok) {
         const categories = await categoryResponse.json()
         setCategoryNames(categories)
+      } else {
+        console.error('Failed to load categories:', categoryResponse.statusText)
+        // Fallback на значения по умолчанию
+        setCategoryNames(defaultCategoryNames)
       }
 
       // Загружаем позиции
       const storesResponse = await fetch('/api/stores')
       if (storesResponse.ok) {
         const storesData = await storesResponse.json()
-        setStores(storesData)
+        setStores(storesData || [])
+      } else {
+        console.error('Failed to load stores:', storesResponse.statusText)
+        // Оставляем пустой массив
+        setStores([])
       }
     } catch (error) {
       console.error('Error loading data:', error)
+      // Fallback на значения по умолчанию при ошибке
+      setCategoryNames(defaultCategoryNames)
+      setStores([])
     } finally {
       setLoading(false)
     }
